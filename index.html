@@ -567,7 +567,7 @@
           <div class="team-row">
             <div class="team-info">
               <img class="team-logo" src="${awayTeam.team.logo || ''}" alt="">
-              <div>
+              <div class="team-name-wrap">
                 <div class="team-name">${awayTeam.team.displayName}</div>
                 <div class="team-record">${awayTeam.records?.[0]?.summary || '0-0'}</div>
               </div>
@@ -580,7 +580,7 @@
           <div class="team-row">
             <div class="team-info">
               <img class="team-logo" src="${homeTeam.team.logo || ''}" alt="">
-              <div>
+              <div class="team-name-wrap">
                 <div class="team-name">${homeTeam.team.displayName}</div>
                 <div class="team-record">${homeTeam.records?.[0]?.summary || '0-0'}</div>
               </div>
@@ -589,9 +589,67 @@
               ${homeTeam.score}
             </div>
           </div>
+
+          <div class="wp-wrap" id="wp-wrap-${event.id}" style="display:none; margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 4px; font-weight: 600;">
+              <span id="wp-away-label-${event.id}"></span>
+              <span id="wp-home-label-${event.id}"></span>
+            </div>
+            <div class="wp-bar-bg" style="height: 6px; background: var(--surface2); border-radius: 4px; display: flex; overflow: hidden;">
+              <div class="wp-bar-away" id="wp-bar-away-${event.id}" style="width: 50%; background: var(--muted);"></div>
+              <div class="wp-bar-home" id="wp-bar-home-${event.id}" style="width: 50%; background: var(--accent);"></div>
+            </div>
+          </div>
         `;
         dom.gamesGrid.appendChild(card);
+
+        if (statusClass === 'live' || statusClass === 'final') {
+          setTimeout(() => updateWinProbability(event.id, awayTeam.team.abbreviation, homeTeam.team.abbreviation, statusClass === 'final', awayTeam.winner, homeTeam.winner, comp.situation?.lastPlay?.probability), 0);
+        }
       });
+    }
+
+    async function updateWinProbability(gameId, awayAbbr, homeAbbr, isFinal, awayWinner, homeWinner, situationWP) {
+      try {
+        let homeWP = 50;
+        let awayWP = 50;
+        
+        if (isFinal) {
+           homeWP = homeWinner ? 100 : 0;
+           awayWP = awayWinner ? 100 : 0;
+           if (!homeWinner && !awayWinner) { homeWP = 50; awayWP = 50; }
+        } else if (situationWP && situationWP.homeWinPercentage !== undefined) {
+           homeWP = Math.round(situationWP.homeWinPercentage * 100);
+           awayWP = 100 - homeWP;
+        } else {
+           const res = await fetch(`${API_BASE}/summary?event=${gameId}`);
+           if (!res.ok) return;
+           const data = await res.json();
+           if (data.winprobability && data.winprobability.length > 0) {
+               const lastWP = data.winprobability[data.winprobability.length - 1];
+               homeWP = Math.round(lastWP.homeWinPercentage * 100);
+               awayWP = 100 - homeWP;
+           } else {
+               return;
+           }
+        }
+        
+        const wrap = document.getElementById(`wp-wrap-${gameId}`);
+        const awayL = document.getElementById(`wp-away-label-${gameId}`);
+        const homeL = document.getElementById(`wp-home-label-${gameId}`);
+        const awayB = document.getElementById(`wp-bar-away-${gameId}`);
+        const homeB = document.getElementById(`wp-bar-home-${gameId}`);
+
+        if (wrap && awayL && homeL && awayB && homeB) {
+            wrap.style.display = 'block';
+            awayL.textContent = `${awayAbbr} ${awayWP}%`;
+            homeL.textContent = `${homeAbbr} ${homeWP}%`;
+            awayB.style.width = `${awayWP}%`;
+            homeB.style.width = `${homeWP}%`;
+        }
+      } catch (err) {
+        console.warn('Win probability error:', err);
+      }
     }
 
     // Modal & Play-by-play Logic
