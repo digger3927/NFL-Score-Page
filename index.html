@@ -558,6 +558,9 @@
         card.className = `game-card ${statusClass}`;
         card.onclick = () => openModal(event.id);
 
+        const awayColor = awayTeam.team.color ? `#${awayTeam.team.color}` : '#555555';
+        const homeColor = homeTeam.team.color ? `#${homeTeam.team.color}` : '#aaaaaa';
+
         card.innerHTML = `
           <div class="game-header">
             <span class="status-badge ${statusClass}">${statusText}</span>
@@ -590,26 +593,27 @@
             </div>
           </div>
 
-          <div class="wp-wrap" id="wp-wrap-${event.id}" style="display:none; margin-top: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 4px; font-weight: 600;">
+          <div class="wp-wrap" id="wp-wrap-${event.id}" style="display:none; margin-top: 16px; padding: 0 4px 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text); margin-bottom: 8px; font-weight: 700;">
               <span id="wp-away-label-${event.id}"></span>
               <span id="wp-home-label-${event.id}"></span>
             </div>
-            <div class="wp-bar-bg" style="height: 6px; background: var(--surface2); border-radius: 4px; display: flex; overflow: hidden;">
-              <div class="wp-bar-away" id="wp-bar-away-${event.id}" style="width: 50%; background: var(--muted);"></div>
-              <div class="wp-bar-home" id="wp-bar-home-${event.id}" style="width: 50%; background: var(--accent);"></div>
+            <div style="position: relative; height: 10px; border-radius: 5px; background: var(--surface2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);" id="wp-track-${event.id}">
+              <div style="position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: rgba(150,150,150,0.5); z-index: 1;"></div>
+              <div id="wp-fill-${event.id}" style="position: absolute; top: 0; bottom: 0; z-index: 1; border-radius: 5px; transition: all 0.4s ease-out;"></div>
+              <div id="wp-thumb-${event.id}" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; background: #ffffff; border: 2px solid var(--text); border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.4); z-index: 2; transition: left 0.4s ease-out, border-color 0.4s ease-out;"></div>
             </div>
           </div>
         `;
         dom.gamesGrid.appendChild(card);
 
         if (statusClass === 'live' || statusClass === 'final') {
-          setTimeout(() => updateWinProbability(event.id, awayTeam.team.abbreviation, homeTeam.team.abbreviation, statusClass === 'final', awayTeam.winner, homeTeam.winner, comp.situation?.lastPlay?.probability), 0);
+          setTimeout(() => updateWinProbability(event.id, awayTeam.team.abbreviation, homeTeam.team.abbreviation, statusClass === 'final', awayTeam.winner, homeTeam.winner, comp.situation?.lastPlay?.probability, awayColor, homeColor), 0);
         }
       });
     }
 
-    async function updateWinProbability(gameId, awayAbbr, homeAbbr, isFinal, awayWinner, homeWinner, situationWP) {
+    async function updateWinProbability(gameId, awayAbbr, homeAbbr, isFinal, awayWinner, homeWinner, situationWP, awayColor, homeColor) {
       try {
         let homeWP = 50;
         let awayWP = 50;
@@ -637,15 +641,28 @@
         const wrap = document.getElementById(`wp-wrap-${gameId}`);
         const awayL = document.getElementById(`wp-away-label-${gameId}`);
         const homeL = document.getElementById(`wp-home-label-${gameId}`);
-        const awayB = document.getElementById(`wp-bar-away-${gameId}`);
-        const homeB = document.getElementById(`wp-bar-home-${gameId}`);
+        const track = document.getElementById(`wp-track-${gameId}`);
+        const fill = document.getElementById(`wp-fill-${gameId}`);
+        const thumb = document.getElementById(`wp-thumb-${gameId}`);
 
-        if (wrap && awayL && homeL && awayB && homeB) {
+        if (wrap && awayL && homeL && track && fill && thumb) {
             wrap.style.display = 'block';
             awayL.textContent = `${awayAbbr} ${awayWP}%`;
             homeL.textContent = `${homeAbbr} ${homeWP}%`;
-            awayB.style.width = `${awayWP}%`;
-            homeB.style.width = `${homeWP}%`;
+            
+            if (homeWP >= 50) {
+                fill.style.left = '50%';
+                fill.style.width = `${homeWP - 50}%`;
+                fill.style.background = homeColor;
+                thumb.style.left = `${homeWP}%`;
+                thumb.style.borderColor = homeColor;
+            } else {
+                fill.style.left = `${100 - awayWP}%`;
+                fill.style.width = `${awayWP - 50}%`;
+                fill.style.background = awayColor;
+                thumb.style.left = `${100 - awayWP}%`;
+                thumb.style.borderColor = awayColor;
+            }
         }
       } catch (err) {
         console.warn('Win probability error:', err);
