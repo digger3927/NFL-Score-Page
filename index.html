@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFL Scoreboard</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --surface: #ffffff;
+      --surface2: #f0f2f5;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --muted: #656d76;
+      --accent: #013369; /* NFL Blue */
+      --live: #d50a0a; /* NFL Red */
+      --final: #656d76;
+      --preview: #9a6700;
+      --radius: 10px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surface2: #21262d;
+        --border: #30363d;
+        --text: #e6edf3;
+        --muted: #7d8590;
+        --accent: #58a6ff;
+        --live: #ff7b72;
+        --final: #7d8590;
+        --preview: #d29922;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo span { color: var(--accent); }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    select, button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      outline: none;
+    }
+    button:hover, select:hover { background: var(--border); }
+
+    .refresh-info {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--live);
+      animation: pulse 1.5s infinite;
+      display: inline-block;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    #games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    /* Game Card */
+    .game-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      position: relative;
+    }
+    .game-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .game-card.live { border-left: 4px solid var(--live); }
+    .game-card.final { border-left: 4px solid var(--final); }
+    .game-card.preview { border-left: 4px solid var(--preview); }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      margin-bottom: 12px;
+      color: var(--muted);
+    }
+    .status-badge {
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .status-badge.live { color: var(--live); }
+    .status-badge.final { color: var(--final); }
+    .status-badge.preview { color: var(--preview); }
+
+    .team-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .team-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .team-logo {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+    }
+    .team-name {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .team-record {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: 6px;
+    }
+    .team-score {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    /* Dialog (Modal) */
+    dialog {
+      margin: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(3px);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 10;
+    }
+    .modal-header h2 { font-size: 18px; }
+    #close-modal {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      color: var(--muted);
+    }
+    #close-modal:hover { color: var(--text); }
+
+    .modal-content {
+      padding: 20px;
+      overflow-y: auto;
+      max-height: calc(90vh - 65px);
+    }
+
+    .modal-scoreboard {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .ms-team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .ms-logo { width: 64px; height: 64px; }
+    .ms-name { font-size: 18px; font-weight: bold; }
+    .ms-score { font-size: 42px; font-weight: 800; }
+    .ms-status {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--live);
+      text-align: center;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .tab {
+      background: none;
+      border: none;
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+    }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Box Score styling */
+    .boxscore-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .boxscore-table th, .boxscore-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: right;
+    }
+    .boxscore-table th:first-child, .boxscore-table td:first-child { text-align: left; }
+    .boxscore-table th { color: var(--muted); font-weight: 600; }
+
+    /* Play-by-play styling */
+    .drive-container {
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .drive-header {
+      background: var(--surface2);
+      padding: 10px 16px;
+      font-weight: bold;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .play-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      display: flex;
+      gap: 16px;
+    }
+    .play-item:last-child { border-bottom: none; }
+    .play-down { font-weight: 600; min-width: 70px; color: var(--muted); }
+    .play-desc { flex-grow: 1; }
+
+    /* Standings */
+    #standings-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 16px 40px;
+    }
+    .standings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .standings-grid { grid-template-columns: 1fr; }
+    }
+    .conference-standings {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .conf-header {
+      background: var(--surface2);
+      padding: 12px;
+      font-weight: 700;
+      font-size: 16px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .standings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .standings-table th, .standings-table td {
+      padding: 8px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+    .standings-table th:first-child, .standings-table td:first-child { text-align: left; }
+    .standings-table tr:last-child td { border-bottom: none; }
+    
+    .team-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .team-cell img { width: 20px; height: 20px; }
+
+    .loader {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">🏈 <span>NFL Scoreboard</span></div>
+    <div class="nav-controls">
+      <select id="season-type-selector">
+        <option value="1">Preseason</option>
+        <option value="2" selected>Regular Season</option>
+        <option value="3">Postseason</option>
+      </select>
+      <select id="week-selector">
+        <!-- populated by JS -->
+      </select>
+    </div>
+    <div class="refresh-info">
+      <span class="live-dot"></span> <span id="refresh-status">Auto-updating</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="games-grid">
+      <div class="loader">Loading games...</div>
+    </div>
+  </main>
+
+  <section id="standings-wrap">
+    <h2 style="margin-bottom: 16px; color: var(--muted); text-transform: uppercase;">League Standings</h2>
+    <div class="standings-grid" id="standings-container">
+      <div class="loader">Loading standings...</div>
+    </div>
+  </section>
+
+  <!-- Modal for Game Details -->
+  <dialog id="game-modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Game Details</h2>
+      <button id="close-modal">&times;</button>
+    </div>
+    <div class="modal-content">
+      <div class="modal-scoreboard" id="modal-scoreboard">
+        <!-- Scoreboard injected here -->
+      </div>
+      
+      <div class="tabs">
+        <button class="tab active" data-target="boxscore-pane">Team Stats</button>
+        <button class="tab" data-target="playbyplay-pane">Play-by-Play</button>
+      </div>
+
+      <div id="boxscore-pane" class="tab-pane active">
+        <div id="boxscore-content"><div class="loader">Loading stats...</div></div>
+      </div>
+      
+      <div id="playbyplay-pane" class="tab-pane">
+        <div id="playbyplay-content"><div class="loader">Loading plays...</div></div>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const API_BASE = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
+    const STANDINGS_API = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings";
+    
+    let currentInterval = null;
+    let activeGameId = null;
+
+    const dom = {
+      weekSelector: document.getElementById('week-selector'),
+      seasonTypeSelector: document.getElementById('season-type-selector'),
+      gamesGrid: document.getElementById('games-grid'),
+      standingsContainer: document.getElementById('standings-container'),
+      modal: document.getElementById('game-modal'),
+      closeModalBtn: document.getElementById('close-modal'),
+      modalScoreboard: document.getElementById('modal-scoreboard'),
+      boxscoreContent: document.getElementById('boxscore-content'),
+      playbyplayContent: document.getElementById('playbyplay-content'),
+      tabs: document.querySelectorAll('.tab'),
+      tabPanes: document.querySelectorAll('.tab-pane')
+    };
+
+    // Initialize
+    async function init() {
+      // 1. Fetch current scoreboard to get current week/season
+      try {
+        const res = await fetch(`${API_BASE}/scoreboard`);
+        const data = await res.json();
+        
+        const currentWeek = data.week.number;
+        const currentSeasonType = data.season.type; // 1 pre, 2 reg, 3 post
+        
+        dom.seasonTypeSelector.value = currentSeasonType;
+        populateWeeks(currentSeasonType, currentWeek);
+        
+        renderScoreboard(data);
+        
+        // Fetch standings once
+        fetchStandings();
+        
+      } catch (err) {
+        console.error("Init error", err);
+        dom.gamesGrid.innerHTML = '<div class="loader">Error loading data.</div>';
+      }
+
+      // Event listeners
+      dom.weekSelector.addEventListener('change', () => loadSelectedWeek());
+      dom.seasonTypeSelector.addEventListener('change', (e) => {
+        populateWeeks(parseInt(e.target.value), 1);
+        loadSelectedWeek();
+      });
+
+      dom.closeModalBtn.addEventListener('click', closeModal);
+      dom.modal.addEventListener('close', closeModal);
+      
+      // Close modal on outside click
+      dom.modal.addEventListener('click', (e) => {
+        const dialogDimensions = dom.modal.getBoundingClientRect();
+        if (
+          e.clientX < dialogDimensions.left ||
+          e.clientX > dialogDimensions.right ||
+          e.clientY < dialogDimensions.top ||
+          e.clientY > dialogDimensions.bottom
+        ) {
+          closeModal();
+        }
+      });
+
+      // Tabs
+      dom.tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          dom.tabs.forEach(t => t.classList.remove('active'));
+          dom.tabPanes.forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.target).classList.add('active');
+        });
+      });
+    }
+
+    function populateWeeks(seasonType, selectedWeek) {
+      dom.weekSelector.innerHTML = '';
+      let maxWeeks = seasonType === 2 ? 18 : (seasonType === 1 ? 4 : 5);
+      for(let i = 1; i <= maxWeeks; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `Week ${i}`;
+        if (i === selectedWeek) opt.selected = true;
+        dom.weekSelector.appendChild(opt);
+      }
+    }
+
+    async function loadSelectedWeek() {
+      dom.gamesGrid.innerHTML = '<div class="loader">Loading games...</div>';
+      const week = dom.weekSelector.value;
+      const type = dom.seasonTypeSelector.value;
+      try {
+        const res = await fetch(`${API_BASE}/scoreboard?seasontype=${type}&week=${week}`);
+        const data = await res.json();
+        renderScoreboard(data);
+      } catch (err) {
+        console.error(err);
+        dom.gamesGrid.innerHTML = '<div class="loader">Error loading games.</div>';
+      }
+    }
+
+    function renderScoreboard(data) {
+      dom.gamesGrid.innerHTML = '';
+      if (!data.events || data.events.length === 0) {
+        dom.gamesGrid.innerHTML = '<div class="loader">No games scheduled for this week.</div>';
+        return;
+      }
+
+      data.events.forEach(event => {
+        const comp = event.competitions[0];
+        const homeTeam = comp.competitors.find(c => c.homeAway === 'home');
+        const awayTeam = comp.competitors.find(c => c.homeAway === 'away');
+        
+        let statusClass = 'preview';
+        let statusText = event.status.type.shortDetail;
+        
+        if (event.status.type.state === 'in') {
+          statusClass = 'live';
+        } else if (event.status.type.state === 'post') {
+          statusClass = 'final';
+        }
+
+        const card = document.createElement('div');
+        card.className = `game-card ${statusClass}`;
+        card.onclick = () => openModal(event.id);
+
+        card.innerHTML = `
+          <div class="game-header">
+            <span class="status-badge ${statusClass}">${statusText}</span>
+            <span>${comp.broadcasts?.[0]?.names?.[0] || ''}</span>
+          </div>
+          
+          <div class="team-row">
+            <div class="team-info">
+              <img class="team-logo" src="${awayTeam.team.logo || ''}" alt="">
+              <div>
+                <div class="team-name">${awayTeam.team.displayName}</div>
+                <div class="team-record">${awayTeam.records?.[0]?.summary || '0-0'}</div>
+              </div>
+            </div>
+            <div class="team-score" style="color: ${awayTeam.winner ? 'var(--text)' : (statusClass === 'final' ? 'var(--muted)' : 'inherit')}">
+              ${awayTeam.score}
+            </div>
+          </div>
+          
+          <div class="team-row">
+            <div class="team-info">
+              <img class="team-logo" src="${homeTeam.team.logo || ''}" alt="">
+              <div>
+                <div class="team-name">${homeTeam.team.displayName}</div>
+                <div class="team-record">${homeTeam.records?.[0]?.summary || '0-0'}</div>
+              </div>
+            </div>
+            <div class="team-score" style="color: ${homeTeam.winner ? 'var(--text)' : (statusClass === 'final' ? 'var(--muted)' : 'inherit')}">
+              ${homeTeam.score}
+            </div>
+          </div>
+        `;
+        dom.gamesGrid.appendChild(card);
+      });
+    }
+
+    // Modal & Play-by-play Logic
+    function openModal(gameId) {
+      activeGameId = gameId;
+      dom.modalScoreboard.innerHTML = '<div class="loader">Loading...</div>';
+      dom.boxscoreContent.innerHTML = '<div class="loader">Loading stats...</div>';
+      dom.playbyplayContent.innerHTML = '<div class="loader">Loading plays...</div>';
+      
+      dom.modal.showModal();
+      
+      // Fetch immediately
+      fetchGameDetails();
+      
+      // Setup 3 second refresh interval
+      currentInterval = setInterval(fetchGameDetails, 3000);
+    }
+
+    function closeModal() {
+      activeGameId = null;
+      if (currentInterval) {
+        clearInterval(currentInterval);
+        currentInterval = null;
+      }
+      dom.modal.close();
+    }
+
+    async function fetchGameDetails() {
+      if (!activeGameId) return;
+      try {
+        const res = await fetch(`${API_BASE}/summary?event=${activeGameId}`);
+        const data = await res.json();
+        
+        renderModalScoreboard(data.header);
+        renderBoxScore(data.boxscore);
+        renderPlayByPlay(data.drives);
+      } catch(err) {
+        console.error("Error fetching game details", err);
+      }
+    }
+
+    function renderModalScoreboard(header) {
+      if (!header) return;
+      const comp = header.competitions[0];
+      const home = comp.competitors.find(c => c.homeAway === 'home');
+      const away = comp.competitors.find(c => c.homeAway === 'away');
+      
+      let statusInfo = comp.status.type.shortDetail;
+      if (comp.status.type.state === 'in') {
+        const poss = header.possessionText ? ` &bull; ${header.possessionText}` : '';
+        statusInfo = `${comp.status.displayClock} - ${comp.status.period}Q ${poss}`;
+      }
+
+      dom.modalScoreboard.innerHTML = `
+        <div class="ms-team">
+          <img class="ms-logo" src="${away.team.logos?.[0]?.href || ''}">
+          <div class="ms-name">${away.team.abbreviation}</div>
+          <div class="ms-score">${away.score || 0}</div>
+        </div>
+        <div class="ms-status">
+          ${statusInfo}
+        </div>
+        <div class="ms-team">
+          <img class="ms-logo" src="${home.team.logos?.[0]?.href || ''}">
+          <div class="ms-name">${home.team.abbreviation}</div>
+          <div class="ms-score">${home.score || 0}</div>
+        </div>
+      `;
+    }
+
+    function renderBoxScore(boxscore) {
+      if (!boxscore || !boxscore.teams) {
+        dom.boxscoreContent.innerHTML = '<div class="loader">No stats available yet.</div>';
+        return;
+      }
+      
+      const awayStats = boxscore.teams[0]?.statistics || [];
+      const homeStats = boxscore.teams[1]?.statistics || [];
+      
+      let html = '<table class="boxscore-table"><thead><tr><th>Stat</th><th>Away</th><th>Home</th></tr></thead><tbody>';
+      
+      awayStats.forEach((stat, idx) => {
+        html += `<tr>
+          <td>${stat.label}</td>
+          <td>${stat.displayValue}</td>
+          <td>${homeStats[idx]?.displayValue || '-'}</td>
+        </tr>`;
+      });
+      
+      html += '</tbody></table>';
+      dom.boxscoreContent.innerHTML = html;
+    }
+
+    function renderPlayByPlay(drives) {
+      if (!drives) {
+        dom.playbyplayContent.innerHTML = '<div class="loader">No play-by-play available.</div>';
+        return;
+      }
+      
+      let html = '';
+      
+      // Display current drive if active
+      if (drives.current) {
+        html += buildDriveHTML(drives.current, true);
+      }
+      
+      // Display previous drives
+      if (drives.previous && drives.previous.length > 0) {
+        // Reverse to show most recent first
+        const prev = [...drives.previous].reverse();
+        prev.forEach(d => {
+          html += buildDriveHTML(d, false);
+        });
+      }
+      
+      dom.playbyplayContent.innerHTML = html || '<div class="loader">No plays found.</div>';
+    }
+    
+    function buildDriveHTML(drive, isCurrent) {
+      let html = `<div class="drive-container">
+        <div class="drive-header">
+          ${isCurrent ? '🔴 CURRENT DRIVE' : 'Drive'} - ${drive.team?.displayName || ''} 
+          (${drive.plays?.length || 0} plays, ${drive.yards || 0} yds, ${drive.timeElapsed?.displayValue || ''}) 
+          ${drive.result ? ' - ' + drive.result : ''}
+        </div>
+      `;
+      
+      if (drive.plays && drive.plays.length > 0) {
+        // Reverse plays to show most recent at the top
+        const plays = [...drive.plays].reverse();
+        plays.forEach(p => {
+          html += `
+            <div class="play-item">
+              <div class="play-down">${p.clock?.displayValue || ''} ${p.start?.shortDownDistanceText || ''}</div>
+              <div class="play-desc">${p.text || ''}</div>
+            </div>
+          `;
+        });
+      } else {
+        html += '<div class="play-item">No plays...</div>';
+      }
+      
+      html += `</div>`;
+      return html;
+    }
+
+    // Standings Logic
+    async function fetchStandings() {
+      try {
+        const res = await fetch(STANDINGS_API);
+        const data = await res.json();
+        
+        let html = '';
+        data.children.forEach(conf => {
+          html += `
+            <div class="conference-standings">
+              <div class="conf-header">${conf.name}</div>
+              <table class="standings-table">
+                <thead>
+                  <tr>
+                    <th>Team</th>
+                    <th>W-L-T</th>
+                    <th>PCT</th>
+                    <th>STRK</th>
+                  </tr>
+                </thead>
+                <tbody>
+          `;
+          
+          conf.standings.entries.forEach(teamEntry => {
+            const team = teamEntry.team;
+            const stats = teamEntry.stats;
+            
+            const wins = stats.find(s => s.name === 'wins')?.value || 0;
+            const losses = stats.find(s => s.name === 'losses')?.value || 0;
+            const ties = stats.find(s => s.name === 'ties')?.value || 0;
+            let pct = stats.find(s => s.name === 'winPercent')?.value;
+            pct = pct !== undefined ? pct.toFixed(3).replace(/^0+/, '') : '.000';
+            
+            let streak = stats.find(s => s.name === 'streak')?.value || 0;
+            
+            html += `
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    <img src="${team.logos?.[0]?.href || ''}" alt="">
+                    <span>${team.displayName}</span>
+                  </div>
+                </td>
+                <td>${wins}-${losses}${ties > 0 ? '-'+ties : ''}</td>
+                <td>${pct}</td>
+                <td>${streak > 0 ? streak + 'W' : (streak < 0 ? Math.abs(streak) + 'L' : streak)}</td>
+              </tr>
+            `;
+          });
+          
+          html += `</tbody></table></div>`;
+        });
+        
+        dom.standingsContainer.innerHTML = html;
+        
+      } catch (err) {
+        console.error(err);
+        dom.standingsContainer.innerHTML = '<div class="loader">Error loading standings.</div>';
+      }
+    }
+
+    // Run
+    init();
+  </script>
+</body>
+</html>
