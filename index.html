@@ -551,6 +551,9 @@
           statusClass = 'final';
         }
 
+        const tv = comp.geoBroadcasts?.find(b => b.type?.shortName === 'TV')?.media?.shortName || comp.broadcasts?.[0]?.names?.[0] || '';
+        const tvHtml = tv ? `<span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; color:var(--text); font-size:11px; background:var(--surface2); padding:2px 6px; border-radius:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>${tv}</span>` : '';
+
         const card = document.createElement('div');
         card.className = `game-card ${statusClass}`;
         card.onclick = () => openModal(event.id);
@@ -558,7 +561,7 @@
         card.innerHTML = `
           <div class="game-header">
             <span class="status-badge ${statusClass}">${statusText}</span>
-            <span>${comp.broadcasts?.[0]?.names?.[0] || ''}</span>
+            ${tvHtml}
           </div>
           
           <div class="team-row">
@@ -642,6 +645,9 @@
         statusInfo = `${comp.status.displayClock} - ${comp.status.period}Q ${poss}`;
       }
 
+      const tv = comp.geoBroadcasts?.find(b => b.type?.shortName === 'TV')?.media?.shortName || comp.broadcasts?.[0]?.names?.[0] || '';
+      const tvHtml = tv ? `<div style="font-size: 12px; color: var(--muted); margin-top: 4px; display:flex; justify-content:center; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>${tv}</div>` : '';
+
       dom.modalScoreboard.innerHTML = `
         <div class="ms-team">
           <img class="ms-logo" src="${away.team.logos?.[0]?.href || ''}">
@@ -650,6 +656,7 @@
         </div>
         <div class="ms-status">
           ${statusInfo}
+          ${tvHtml}
         </div>
         <div class="ms-team">
           <img class="ms-logo" src="${home.team.logos?.[0]?.href || ''}">
