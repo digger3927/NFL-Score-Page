@@ -702,7 +702,7 @@
         
         renderModalScoreboard(data.header);
         renderBoxScore(data.boxscore);
-        renderPlayByPlay(data.drives);
+        renderPlayByPlay(data.drives, data.header);
       } catch(err) {
         console.error("Error fetching game details", err);
       }
@@ -764,13 +764,144 @@
       dom.boxscoreContent.innerHTML = html;
     }
 
-    function renderPlayByPlay(drives) {
+    function renderPlayByPlay(drives, header) {
       if (!drives) {
         dom.playbyplayContent.innerHTML = '<div class="loader">No play-by-play available.</div>';
         return;
       }
       
       let html = '';
+
+      // Find last play
+      let lastPlay = null;
+      if (drives.current && drives.current.plays && drives.current.plays.length > 0) {
+        lastPlay = drives.current.plays[drives.current.plays.length - 1];
+      } else if (drives.previous && drives.previous.length > 0) {
+        const lastDrive = drives.previous[drives.previous.length - 1];
+        if (lastDrive.plays && lastDrive.plays.length > 0) {
+          lastPlay = lastDrive.plays[lastDrive.plays.length - 1];
+        }
+      }
+
+      if (lastPlay && header) {
+        const comp = header.competitions[0];
+        const home = comp.competitors.find(c => c.homeAway === 'home');
+        const away = comp.competitors.find(c => c.homeAway === 'away');
+
+        if (lastPlay.start && away && home) {
+          const isAwayOffense = lastPlay.start.team?.id === away.team.id;
+          
+          let startYard = lastPlay.start.yardsToEndzone;
+          let endYard = lastPlay.end ? lastPlay.end.yardsToEndzone : (startYard - (lastPlay.statYardage || 0));
+          
+          if (/field goal/i.test(lastPlay.type?.text || '')) {
+            endYard = -10; // Go to the goal post
+          } else {
+            if (endYard < 0) endYard = 0;
+            if (endYard > 100) endYard = 100;
+          }
+
+          let abs_start = isAwayOffense ? 10 + (100 - startYard) : 10 + startYard;
+          let abs_end = isAwayOffense ? 10 + (100 - endYard) : 10 + endYard;
+
+          const playType = (lastPlay.type?.text || '').toLowerCase();
+          const isPassOrKick = /pass|kick|punt|field goal/i.test(playType);
+
+          const awayHex = away.team.color ? `#${away.team.color}` : '#333';
+          const homeHex = home.team.color ? `#${home.team.color}` : '#333';
+          const awayAbbr = away.team.abbreviation || 'AWAY';
+          const homeAbbr = home.team.abbreviation || 'HOME';
+          
+          let yardLines = '';
+          for (let i = 0; i < 10; i++) {
+              const x = 10 + i * 10;
+              const fill = i % 2 === 0 ? '#f0f0f0' : '#e0e0e0';
+              yardLines += `<rect x="${x}" y="5" width="10" height="20" fill="${fill}" />`;
+              if (i > 0) {
+                  yardLines += `<line x1="${x}" y1="5" x2="${x}" y2="25" stroke="#ccc" stroke-width="0.2"/>`;
+              }
+          }
+          
+          let yardNumbers = '';
+          const yards = [10, 20, 30, 40, 50, 40, 30, 20, 10];
+          for (let i = 0; i < 9; i++) {
+              const x = 20 + i * 10;
+              yardNumbers += `<text x="${x}" y="29" font-size="2.5" fill="#999" text-anchor="middle">${yards[i]}</text>`;
+          }
+          yardNumbers += `<text x="5" y="29" font-size="2.5" fill="#999" text-anchor="middle">${awayAbbr}</text>`;
+          yardNumbers += `<text x="115" y="29" font-size="2.5" fill="#999" text-anchor="middle">${homeAbbr}</text>`;
+          
+          const awayEndzone = `
+              <rect x="0" y="5" width="10" height="20" fill="${awayHex}" />
+              <text x="5" y="15" font-size="4" fill="#fff" text-anchor="middle" font-weight="bold" transform="rotate(-90, 5, 15)">${awayAbbr}</text>
+          `;
+          
+          const homeEndzone = `
+              <rect x="110" y="5" width="10" height="20" fill="${homeHex}" />
+              <text x="115" y="15" font-size="4" fill="#fff" text-anchor="middle" font-weight="bold" transform="rotate(90, 115, 15)">${homeAbbr}</text>
+          `;
+          
+          const goalPostLeft = `
+              <line x1="0" y1="15" x2="0" y2="5" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="-2" y1="5" x2="2" y2="5" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="-2" y1="5" x2="-2" y2="0" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="2" y1="5" x2="2" y2="0" stroke="#f1c40f" stroke-width="0.6"/>
+          `;
+          
+          const goalPostRight = `
+              <line x1="120" y1="15" x2="120" y2="5" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="118" y1="5" x2="122" y2="5" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="118" y1="5" x2="118" y2="0" stroke="#f1c40f" stroke-width="0.6"/>
+              <line x1="122" y1="5" x2="122" y2="0" stroke="#f1c40f" stroke-width="0.6"/>
+          `;
+          
+          let playPath = '';
+          const playColor = 'var(--text)';
+          
+          playPath += `<line x1="${abs_start}" y1="5" x2="${abs_start}" y2="25" stroke="${isAwayOffense ? awayHex : homeHex}" stroke-width="0.4" />`;
+          if (lastPlay.start.distance) {
+            let fd_yard = isAwayOffense ? abs_start + lastPlay.start.distance : abs_start - lastPlay.start.distance;
+            playPath += `<line x1="${fd_yard}" y1="5" x2="${fd_yard}" y2="25" stroke="#f1c40f" stroke-width="0.4" />`;
+          }
+
+          const dir = isAwayOffense ? 1 : -1;
+          const tipX = abs_end + dir * 1.5;
+          if (isPassOrKick) {
+             const midX = (abs_start + abs_end) / 2;
+             playPath += `
+                 <path d="M ${abs_start} 15 Q ${midX} -5, ${abs_end} 15" stroke="${playColor}" stroke-dasharray="1,1" fill="none" stroke-width="0.6"/>
+                 <circle cx="${abs_start}" cy="15" r="0.6" fill="${playColor}"/>
+                 <polygon points="${abs_end},14.2 ${tipX},15 ${abs_end},15.8" fill="${playColor}"/>
+             `;
+          } else {
+             playPath += `
+                 <line x1="${abs_start}" y1="15" x2="${abs_end}" y2="15" stroke="${playColor}" stroke-width="0.6"/>
+                 <circle cx="${abs_start}" cy="15" r="0.6" fill="${playColor}"/>
+                 <polygon points="${abs_end},14.2 ${tipX},15 ${abs_end},15.8" fill="${playColor}"/>
+             `;
+          }
+
+          const teamLogo = isAwayOffense ? (away.team.logos?.[0]?.href || '') : (home.team.logos?.[0]?.href || '');
+          const teamLogoHtml = teamLogo ? `<img src="${teamLogo}" style="height: 24px; vertical-align: middle; margin-right: 8px;">` : '';
+          
+          let playHeadline = lastPlay.type?.text?.toUpperCase() || 'PLAY';
+          let playHeadlineHtml = `<div style="display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; margin-bottom: 16px;">${teamLogoHtml}${playHeadline}</div>`;
+
+          let svgHtml = `
+            ${playHeadlineHtml}
+            <svg viewBox="-5 -2 130 35" width="100%" style="margin-bottom: 24px; display: block; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));">
+                ${yardLines}
+                ${awayEndzone}
+                ${homeEndzone}
+                ${goalPostLeft}
+                ${goalPostRight}
+                ${yardNumbers}
+                ${playPath}
+            </svg>
+          `;
+          html += svgHtml;
+        }
+      }
       
       // Display current drive if active
       if (drives.current) {
